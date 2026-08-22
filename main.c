@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #define COLOR_CHANNELS 3
 #define WIDTH 600
@@ -9,7 +11,7 @@ inline int PixelIndex(int pixel) {
   return pixel * COLOR_CHANNELS;
 }
 
-int main() {
+int main(void) {
   const int screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
   const int pixel_count = WIDTH * HEIGHT;
 
@@ -33,12 +35,17 @@ int main() {
     }
   }
 
-  FILE *fp = fopen("image.ppm", "w");
+  if (mkdir("output", 0755) == -1 && errno != EEXIST) {
+    perror("mkdir");
+    return 1;
+   }
+
+  FILE *fp = fopen("output/image.ppm", "w");
   if (fp == NULL) {
     perror("Could not open image.ppm");
     return 1;
   }
-  
+
   fprintf(fp, "P3\n%d %d\n255\n", WIDTH, HEIGHT);
 
   for (int pixel = 0; pixel < pixel_count; pixel++) {
