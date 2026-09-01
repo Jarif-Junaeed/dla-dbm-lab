@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,9 +12,54 @@
 
 inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
-int render(bool *grid) {
-  const int screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
-  const int pixel_count = WIDTH * HEIGHT;
+void SpawnSideUniform(int *x, int *y) {
+  int w = WIDTH - 1;
+  int h = HEIGHT - 1;
+  int side = rand() % 4;
+  switch (side) {
+  case 0:
+    *x = rand() % w + 1;
+    *y = 0;
+    break;
+  case 1:
+    *x = WIDTH - 1;
+    *y = rand() % h + 1;
+    break;
+  case 2:
+    *x = rand() % w;
+    *y = HEIGHT - 1;
+    break;
+  case 3:
+    *x = 0;
+    *y = rand() % h;
+    break;
+  }
+}
+
+void SpawnPixelUniform(int *x, int *y) {
+  int w = WIDTH - 1;
+  int h = HEIGHT - 1;
+  int perimeter = 2 * (w + h);
+  int r = rand() % perimeter;
+
+  if (r < w) {
+    *x = r + 1;
+    *y = 0;
+  } else if (r < w + h) {
+    *x = w;
+    *y = (r - w) + 1;
+  } else if (r < (2 * w + h)) {
+    *x = r - (w + h);
+    *y = h;
+  } else {
+    *x = 0;
+    *y = r - ((2 * w) + h);
+  }
+}
+
+int Render(bool *grid) {
+  const int unsigned screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
+  const int unsigned pixel_count = WIDTH * HEIGHT;
 
   int *screen = malloc(screen_size * sizeof(int));
   if (screen == NULL) {
@@ -21,7 +67,7 @@ int render(bool *grid) {
     return 1;
   }
 
-  for (int pixel = 0; pixel < pixel_count; pixel++) {
+  for (unsigned int pixel = 0; pixel < pixel_count; pixel++) {
     int i = pixel * COLOR_CHANNELS;
 
     if (pixel < pixel_count / 2) {
@@ -29,9 +75,9 @@ int render(bool *grid) {
       screen[i + 1] = 255; // G
       screen[i + 2] = 255; // B
     } else {
-      screen[i] = 0;
-      screen[i + 1] = 0;
-      screen[i + 2] = 0;
+      screen[i] = 0;     // R
+      screen[i + 1] = 0; // G
+      screen[i + 2] = 0; // B
     }
   }
 
@@ -48,7 +94,7 @@ int render(bool *grid) {
 
   fprintf(fp, "P3\n%d %d\n255\n", WIDTH, HEIGHT);
 
-  for (int pixel = 0; pixel < pixel_count; pixel++) {
+  for (unsigned int pixel = 0; pixel < pixel_count; pixel++) {
     int i = pixel * COLOR_CHANNELS;
 
     fprintf(fp, "%d %d %d\n", screen[i], screen[i + 1], screen[i + 2]);
@@ -60,12 +106,10 @@ int render(bool *grid) {
   return 0;
 }
 
-void walk(int x, int y, bool *grid) {
-  
-}
+void Walk(int x, int y, bool *grid) {}
 
 int main(void) {
-  const int grid_size = WIDTH * HEIGHT;
+  const unsigned int grid_size = WIDTH * HEIGHT;
 
   const int grid_center = (HEIGHT / 2) * WIDTH + (WIDTH / 2);
   bool *grid = calloc(grid_size, sizeof(bool));
@@ -76,32 +120,27 @@ int main(void) {
 
   grid[grid_center] = 1;
 
-  for (int i = 0; i < ITERATIONS; i++) {
-    int side = rand() % 4;
-    int x, y;
-    switch (side) {
-      case 0:
-          x = rand() % WIDTH; 
-          y = 0;
-          break;
-      case 1:
-          x = WIDTH - 1;
-          y = rand() % HEIGHT;
-          break;
-      case 2:
-          x = rand() % WIDTH;
-          y = HEIGHT - 1;
-          break;
-      case 3:
-          x = 0;
-          y = rand() % HEIGHT;
-          break;
+  unsigned int spawn_site_distribution = UINT_MAX;
+  printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n");
 
-    }
-
+  while (spawn_site_distribution != 1 && spawn_site_distribution != 2) {
+    scanf("%u", &spawn_site_distribution);
   }
 
-  if (render(grid) == 1) {
+  for (int i = 0; i < ITERATIONS; i++) {
+    int x, y;
+    switch (spawn_site_distribution) {
+    case 1:
+      SpawnSideUniform(&x, &y);
+      break;
+
+    case 2:
+      SpawnPixelUniform(&x, &y);
+      break;
+    }
+  }
+
+  if (Render(grid) == 1) {
     return 1;
   }
 
