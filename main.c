@@ -15,6 +15,15 @@
 #define WIDTH 600
 #define HEIGHT 400
 
+struct gridDelta {
+  int dest;
+  int src;
+};
+
+inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
+
+inline int GridIndex(int x, int y) { return y * WIDTH + x; }
+
 int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
   unsigned char random_buffer[8];
   ssize_t seed_n = getrandom(random_buffer, sizeof(random_buffer), 0);
@@ -32,12 +41,19 @@ int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
   return 0;
 }
 
-inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
+static void ensure_capacity(int *index_count, int *capacity, struct gridDelta **grid_deltas) {
+  if (*index_count >= *capacity) {
+    *capacity *= 2;
+    struct gridDelta *tmp = realloc(*grid_deltas, *capacity * sizeof(struct gridDelta));
+    if (tmp == NULL) { perror("gridDelta realloc failed"); exit(1); }
+    *grid_deltas = tmp;
+  }
+}
 
 void SpawnSideUniform(int *x, int *y, pcg32_random_t *rng) {
   int w = WIDTH - 1;
   int h = HEIGHT - 1;
-  int side = pcg32_random_r(rng) % 4;
+  int side = pcg32_random_r(rng) & 3;
   switch (side) {
   case 0:
     *x = pcg32_random_r(rng) % w + 1;
@@ -128,7 +144,62 @@ int Render(bool *grid) {
   return 0;
 }
 
-void Walk(int x, int y, bool *grid) {}
+int Walk(int *index_count, int *capacity, int x, int y, bool *grid, struct gridDelta **grid_deltas, pcg32_random_t *rng) {
+  for (int i = 1; i <= ITERATIONS; i++) {
+    unsigned int direction = pcg32_random_r(rng) & 3;
+    int next_x = x;
+    int next_y = y;
+    switch (direction) {
+    case 0:
+      next_y--;
+      break;
+    case 1:
+      next_x++;
+      break;
+    case 2:
+      next_y++;
+      break;
+    case 3:
+      next_x--;
+      break;
+    }
+
+    if (next_x < 0 || next_x >= WIDTH || next_y < 0 || next_y >= HEIGHT) {
+      ensure_capacity(index_count, capacity, grid_deltas);
+      (*grid_deltas)[(*index_count)++] = (struct gridDelta){.dest = -1, .src = GridIndex(x, y)};
+      return 0;
+    }
+
+    if ((next_y > 0 && grid[GridIndex(next_x, next_y - 1)]) ||
+        (next_y < HEIGHT - 1 && grid[GridIndex(next_x, next_y + 1)]) ||
+        (next_x > 0 && grid[GridIndex(next_x - 1, next_y)]) ||
+        (next_x < WIDTH - 1 && grid[GridIndex(next_x + 1, next_y)])) {
+
+      grid[GridIndex(next_x, next_y)] = 1;
+      
+      ensure_capacity(index_count, capacity, grid_deltas);
+      (*grid_deltas)[(*index_count)++] = (struct gridDelta){
+        .dest = GridIndex(next_x, next_y), 
+        .src = GridIndex(x, y)
+      };
+
+      return 0;
+    } else if ( i == ITERATIONS) {
+      ensure_capacity(index_count, capacity, grid_deltas);
+      (*grid_deltas)[(*index_count)++] = (struct gridDelta){.dest = GridIndex(next_x, next_y), .src = GridIndex(x, y)};
+      ensure_capacity(index_count, capacity, grid_deltas);
+      (*grid_deltas)[(*index_count)++] = (struct gridDelta){.dest = -1, .src = GridIndex(next_x, next_y)};
+      return 0;
+    }
+
+    ensure_capacity(index_count, capacity, grid_deltas);
+    (*grid_deltas)[(*index_count)++] = (struct gridDelta){.dest = GridIndex(next_x, next_y), .src = GridIndex(x, y)};
+    x = next_x;
+    y = next_y;
+    
+  }
+  return 0;
+}
 
 int main(void) {
   uint64_t seed;
@@ -142,14 +213,22 @@ int main(void) {
 
   const unsigned int grid_size = WIDTH * HEIGHT;
 
-  const int grid_center = (HEIGHT / 2) * WIDTH + (WIDTH / 2);
+  const int grid_center = GridIndex((WIDTH / 2), (HEIGHT / 2));
   bool *grid = calloc(grid_size, sizeof(bool));
   if (grid == NULL) {
     perror("could not allocate memory for grid");
     return -1;
   }
 
+  //struct gridDelta *grid_deltas = malloc((ITERATIONS * (ITERATIONS + 1) + 1) * sizeof(struct gridDelta));
+  int capacity = 500;
+  struct gridDelta *grid_deltas = malloc(capacity * sizeof(struct gridDelta));
+  if (grid_deltas == NULL) {
+    perror("could not allocate memory for grid");
+    return -1;
+  }
   grid[grid_center] = 1;
+  grid_deltas[0] = (struct gridDelta){.dest = grid_center, .src = grid_center};
 
   unsigned int spawn_site_distribution = UINT_MAX;
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n");
@@ -158,7 +237,8 @@ int main(void) {
     scanf("%u", &spawn_site_distribution);
   }
 
-  for (int i = 0; i < ITERATIONS; i++) {
+  int index_count = 1;
+  for (int i = 1; i <= ITERATIONS; i++) {
     int x, y;
     switch (spawn_site_distribution) {
     case 1:
@@ -169,6 +249,13 @@ int main(void) {
       SpawnPixelUniform(&x, &y, &rng);
       break;
     }
+
+    ensure_capacity(&index_count, &capacity, &grid_deltas);
+    grid_deltas[index_count++] = (struct gridDelta){.dest = GridIndex(x, y), .src = GridIndex(x, y)};
+
+    if(Walk(&index_count, &capacity, x, y, grid, &grid_deltas, &rng) == 1) {
+      return 1;
+    };
   }
 
   if (Render(grid) == 1) {
@@ -176,6 +263,7 @@ int main(void) {
   }
 
   free(grid);
+  free(grid_deltas);
 
   return 0;
 }
