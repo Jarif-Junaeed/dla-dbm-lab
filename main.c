@@ -1,46 +1,68 @@
+#include "pcg_basic.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/random.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define ITERATIONS 10000
 #define COLOR_CHANNELS 3
 #define WIDTH 600
 #define HEIGHT 400
 
+int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
+  unsigned char random_buffer[8];
+  ssize_t seed_n = getrandom(random_buffer, sizeof(random_buffer), 0);
+  if (seed_n != sizeof(random_buffer)) {
+    return 1;
+  }
+  memcpy(seed, random_buffer, sizeof(*seed));
+
+  ssize_t sequence_n = getrandom(random_buffer, sizeof(random_buffer), 0);
+  if (sequence_n != sizeof(random_buffer)) {
+    return 1;
+  }
+  memcpy(sequence, random_buffer, sizeof(*sequence));
+
+  return 0;
+}
+
 inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
-void SpawnSideUniform(int *x, int *y) {
+void SpawnSideUniform(int *x, int *y, pcg32_random_t *rng) {
   int w = WIDTH - 1;
   int h = HEIGHT - 1;
-  int side = rand() % 4;
+  int side = pcg32_random_r(rng) % 4;
   switch (side) {
   case 0:
-    *x = rand() % w + 1;
+    *x = pcg32_random_r(rng) % w + 1;
     *y = 0;
     break;
   case 1:
     *x = WIDTH - 1;
-    *y = rand() % h + 1;
+    *y = pcg32_random_r(rng) % h + 1;
     break;
   case 2:
-    *x = rand() % w;
+    *x = pcg32_random_r(rng) % w;
     *y = HEIGHT - 1;
     break;
   case 3:
     *x = 0;
-    *y = rand() % h;
+    *y = pcg32_random_r(rng) % h;
     break;
   }
 }
 
-void SpawnPixelUniform(int *x, int *y) {
+void SpawnPixelUniform(int *x, int *y, pcg32_random_t *rng) {
   int w = WIDTH - 1;
   int h = HEIGHT - 1;
   int perimeter = 2 * (w + h);
-  int r = rand() % perimeter;
+  int r = pcg32_random_r(rng) % perimeter;
 
   if (r < w) {
     *x = r + 1;
@@ -109,6 +131,15 @@ int Render(bool *grid) {
 void Walk(int x, int y, bool *grid) {}
 
 int main(void) {
+  uint64_t seed;
+  uint64_t sequence;
+  if (InitSeedSequence(&seed, &sequence) == 1) {
+    perror("InitSeedSequence failed");
+    return 1;
+  }
+  pcg32_random_t rng;
+  pcg32_srandom_r(&rng, seed, sequence);
+
   const unsigned int grid_size = WIDTH * HEIGHT;
 
   const int grid_center = (HEIGHT / 2) * WIDTH + (WIDTH / 2);
@@ -131,11 +162,11 @@ int main(void) {
     int x, y;
     switch (spawn_site_distribution) {
     case 1:
-      SpawnSideUniform(&x, &y);
+      SpawnSideUniform(&x, &y, &rng);
       break;
 
     case 2:
-      SpawnPixelUniform(&x, &y);
+      SpawnPixelUniform(&x, &y, &rng);
       break;
     }
   }
