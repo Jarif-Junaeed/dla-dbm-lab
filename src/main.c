@@ -10,10 +10,16 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "griddelta.h"
+
 #define ITERATIONS 10000
 #define COLOR_CHANNELS 3
 #define WIDTH 600
 #define HEIGHT 400
+
+inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
+
+inline int GridIndex(int x, int y) { return y * WIDTH + x; }
 
 int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
   unsigned char random_buffer[8];
@@ -32,12 +38,10 @@ int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
   return 0;
 }
 
-inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
-
 void SpawnSideUniform(int *x, int *y, pcg32_random_t *rng) {
   int w = WIDTH - 1;
   int h = HEIGHT - 1;
-  int side = pcg32_random_r(rng) % 4;
+  int side = pcg32_random_r(rng) & 3;
   switch (side) {
   case 0:
     *x = pcg32_random_r(rng) % w + 1;
@@ -105,12 +109,15 @@ int Render(bool *grid) {
 
   if (mkdir("output", 0755) == -1 && errno != EEXIST) {
     perror("mkdir");
+    free(screen);
     return 1;
   }
 
   FILE *fp = fopen("output/image.ppm", "w");
   if (fp == NULL) {
     perror("Could not open image.ppm");
+    free(screen);
+    fclose(fp);
     return 1;
   }
 
@@ -128,7 +135,53 @@ int Render(bool *grid) {
   return 0;
 }
 
-void Walk(int x, int y, bool *grid) {}
+int Walk(struct gridDeltas *grid_deltas, int x, int y, bool *grid, pcg32_random_t *rng) {
+  for (int i = 1; i <= ITERATIONS; i++) {
+    unsigned int direction = pcg32_random_r(rng) & 3;
+    int next_x = x;
+    int next_y = y;
+    switch (direction) {
+    case 0:
+      next_y--;
+      break;
+    case 1:
+      next_x++;
+      break;
+    case 2:
+      next_y++;
+      break;
+    case 3:
+      next_x--;
+      break;
+    }
+
+    if (next_x < 0 || next_x >= WIDTH || next_y < 0 || next_y >= HEIGHT) {
+      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndex(x, y));
+      return 0;
+    }
+
+    if ((next_y > 0 && grid[GridIndex(next_x, next_y - 1)]) ||
+        (next_y < HEIGHT - 1 && grid[GridIndex(next_x, next_y + 1)]) ||
+        (next_x > 0 && grid[GridIndex(next_x - 1, next_y)]) ||
+        (next_x < WIDTH - 1 && grid[GridIndex(next_x + 1, next_y)])) {
+
+      grid[GridIndex(next_x, next_y)] = 1;
+      
+      grid_deltas->m_RecordGridDelta(grid_deltas, -GridIndex(next_x, next_y), GridIndex(x, y));
+      return 0;
+    } else if ( i == ITERATIONS) {
+      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
+      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndex(next_x, next_y));
+      return 0;
+    }
+
+    grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
+    x = next_x;
+    y = next_y;
+    
+  }
+  return 0;
+}
 
 int main(void) {
   uint64_t seed;
@@ -142,14 +195,17 @@ int main(void) {
 
   const unsigned int grid_size = WIDTH * HEIGHT;
 
-  const int grid_center = (HEIGHT / 2) * WIDTH + (WIDTH / 2);
+  const int grid_center = GridIndex((WIDTH / 2), (HEIGHT / 2));
   bool *grid = calloc(grid_size, sizeof(bool));
   if (grid == NULL) {
     perror("could not allocate memory for grid");
     return -1;
   }
 
+  struct gridDeltas grid_deltas = GridDeltasCreate(500);
+
   grid[grid_center] = 1;
+  grid_deltas.m_RecordGridDelta(&grid_deltas, grid_center, grid_center);
 
   unsigned int spawn_site_distribution = UINT_MAX;
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n");
@@ -158,7 +214,7 @@ int main(void) {
     scanf("%u", &spawn_site_distribution);
   }
 
-  for (int i = 0; i < ITERATIONS; i++) {
+  for (int i = 1; i <= ITERATIONS; i++) {
     int x, y;
     switch (spawn_site_distribution) {
     case 1:
@@ -169,6 +225,12 @@ int main(void) {
       SpawnPixelUniform(&x, &y, &rng);
       break;
     }
+
+    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndex(x, y), GridIndex(x, y));
+
+    if(Walk(&grid_deltas, x, y, grid, &rng) == 1) {
+      return 1;
+    };
   }
 
   if (Render(grid) == 1) {
@@ -176,6 +238,7 @@ int main(void) {
   }
 
   free(grid);
+  GridDeltasDestroy(&grid_deltas);
 
   return 0;
 }
