@@ -211,7 +211,10 @@ int main(void) {
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n");
 
   while (spawn_site_distribution != 1 && spawn_site_distribution != 2) {
-    scanf("%u", &spawn_site_distribution);
+    if (scanf("%u", &spawn_site_distribution) == 1) {
+      int c;
+      while((c = getchar()) != '\n' && c != EOF) {};
+    };
   }
 
   for (int i = 1; i <= ITERATIONS; i++) {
