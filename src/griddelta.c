@@ -11,6 +11,11 @@
 
 void RecordGridDelta(struct gridDeltas *self, int dest, int src) {
   
+  if (self->m_capacity == 0) {
+    perror("RecordGridDelta() called on a gridDeltas with 0 capacity");
+    exit(1);
+  } 
+
   if (self->m_used_capacity >= self->m_capacity) {
     self->m_capacity *= 2; 
     struct gridDelta *tmp = realloc(
