@@ -18,8 +18,7 @@ void RecordGridDelta(struct gridDeltas *self, int dest, int src) {
 
   if (self->m_used_capacity >= self->m_capacity) {
     self->m_capacity *= 2; 
-    struct gridDelta *tmp = realloc(
-        self->m_grid_deltas, self->m_capacity * sizeof(struct gridDelta));
+    struct gridDelta *tmp = realloc(self->m_grid_deltas, self->m_capacity * sizeof(struct gridDelta));
     if (tmp == NULL) {
       perror("gridDelta realloc failed");
       exit(1);
