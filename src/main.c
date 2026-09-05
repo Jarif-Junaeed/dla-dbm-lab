@@ -21,21 +21,25 @@ static inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
 static inline int GridIndex(int x, int y) { return y * WIDTH + x; }
 
-int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
+void InitRNG(pcg32_random_t *rng) {
+  uint64_t seed;
+  uint64_t sequence;
   unsigned char random_buffer[8];
   ssize_t seed_n = getrandom(random_buffer, sizeof(random_buffer), 0);
   if (seed_n != sizeof(random_buffer)) {
-    return 1;
+    perror("CreateRNG() failed, unable to get seed");
+    exit(1);
   }
-  memcpy(seed, random_buffer, sizeof(*seed));
+  memcpy(&seed, random_buffer, sizeof(seed));
 
   ssize_t sequence_n = getrandom(random_buffer, sizeof(random_buffer), 0);
   if (sequence_n != sizeof(random_buffer)) {
-    return 1;
+    perror("CreateRNG() failed, unable to get sequence");
+    exit(1);
   }
-  memcpy(sequence, random_buffer, sizeof(*sequence));
+  memcpy(&sequence, random_buffer, sizeof(sequence));
 
-  return 0;
+  pcg32_srandom_r(rng, seed, sequence);
 }
 
 void SpawnSideUniform(int *x, int *y, pcg32_random_t *rng) {
@@ -184,14 +188,8 @@ int Walk(struct gridDeltas *grid_deltas, int x, int y, bool *grid, pcg32_random_
 }
 
 int main(void) {
-  uint64_t seed;
-  uint64_t sequence;
-  if (InitSeedSequence(&seed, &sequence) == 1) {
-    perror("InitSeedSequence failed");
-    return 1;
-  }
-  pcg32_random_t rng;
-  pcg32_srandom_r(&rng, seed, sequence);
+  pcg32_random_t rng1;
+  InitRNG(&rng1);
 
   const unsigned int grid_size = WIDTH * HEIGHT;
 
@@ -221,17 +219,17 @@ int main(void) {
     int x, y;
     switch (spawn_site_distribution) {
     case 1:
-      SpawnSideUniform(&x, &y, &rng);
+      SpawnSideUniform(&x, &y, &rng1);
       break;
 
     case 2:
-      SpawnPixelUniform(&x, &y, &rng);
+      SpawnPixelUniform(&x, &y, &rng1);
       break;
     }
 
     grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndex(x, y), GridIndex(x, y));
 
-    if(Walk(&grid_deltas, x, y, grid, &rng) == 1) {
+    if(Walk(&grid_deltas, x, y, grid, &rng1) == 1) {
       return 1;
     };
   }
