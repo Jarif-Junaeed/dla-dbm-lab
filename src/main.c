@@ -17,9 +17,9 @@
 #define WIDTH 600
 #define HEIGHT 400
 
-inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
+static inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
-inline int GridIndex(int x, int y) { return y * WIDTH + x; }
+static inline int GridIndex(int x, int y) { return y * WIDTH + x; }
 
 int InitSeedSequence(uint64_t *seed, uint64_t *sequence) {
   unsigned char random_buffer[8];
@@ -167,7 +167,7 @@ int Walk(struct gridDeltas *grid_deltas, int x, int y, bool *grid, pcg32_random_
 
       grid[GridIndex(next_x, next_y)] = 1;
       
-      grid_deltas->m_RecordGridDelta(grid_deltas, -GridIndex(next_x, next_y), GridIndex(x, y));
+      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
       return 0;
     } else if ( i == ITERATIONS) {
       grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
