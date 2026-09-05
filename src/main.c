@@ -6,20 +6,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include "griddelta.h"
 
+#define PI 3.1415926536
+
 #define ITERATIONS 10000
 #define COLOR_CHANNELS 3
 #define WIDTH 600
 #define HEIGHT 400
+#define DEFAULT_RADIUS 10.00
+
+#define BIT_MASK_32 0xFFFFFFFFu
 
 static inline int PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
-static inline int GridIndex(int x, int y) { return y * WIDTH + x; }
+static inline int GridIndexFromCoords(int x, int y) { return y * WIDTH + x; }
+static inline uint64_t GridCoordsFromIndex(int index) {
+  int y = index / WIDTH;
+  int x = index % WIDTH;
+
+  uint64_t coords = 0;
+  coords = (coords | x) << 32;
+  coords = (coords | y);
+
+  return coords;
+}
+
+static double EuclideanDistance(int x1, int y1, int x2, int y2) {
+  int delx = x2 - x1;
+  int dely = y2 - y1;
+  
+  return sqrt((delx * delx) + (dely * dely));
+}
 
 void InitRNG(pcg32_random_t *rng) {
   uint64_t seed;
@@ -87,6 +110,16 @@ void SpawnPixelUniform(int *x, int *y, pcg32_random_t *rng) {
   }
 }
 
+void SpawnCircumferenceUniform(int *x, int *y, double radius, int center, pcg32_random_t *rng) {
+  uint64_t center_coords = GridCoordsFromIndex(center);
+  int center_x = (center_coords >> 32) & BIT_MASK_32;
+  int center_y = center_coords & BIT_MASK_32;
+
+  double r = (double)pcg32_random_r(rng) / UINT32_MAX;
+  *x = (radius * sin(r * 2 * PI) + center_x);
+  *y = (radius * cos(r * 2 * PI) + center_y);
+}
+
 int Render(bool *grid) {
   const int unsigned screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
   const int unsigned pixel_count = WIDTH * HEIGHT;
@@ -139,7 +172,7 @@ int Render(bool *grid) {
   return 0;
 }
 
-int Walk(struct gridDeltas *grid_deltas, int x, int y, bool *grid, pcg32_random_t *rng) {
+void Walk(struct gridDeltas *grid_deltas, int x, int y, int grid_center, double *radius, bool *grid, pcg32_random_t *rng) {
   for (int i = 1; i <= ITERATIONS; i++) {
     unsigned int direction = pcg32_random_r(rng) & 3;
     int next_x = x;
@@ -159,32 +192,46 @@ int Walk(struct gridDeltas *grid_deltas, int x, int y, bool *grid, pcg32_random_
       break;
     }
 
+    // Walker went out of bounds
     if (next_x < 0 || next_x >= WIDTH || next_y < 0 || next_y >= HEIGHT) {
-      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndex(x, y));
-      return 0;
+      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndexFromCoords(x, y));
+      return;
     }
 
-    if ((next_y > 0 && grid[GridIndex(next_x, next_y - 1)]) ||
-        (next_y < HEIGHT - 1 && grid[GridIndex(next_x, next_y + 1)]) ||
-        (next_x > 0 && grid[GridIndex(next_x - 1, next_y)]) ||
-        (next_x < WIDTH - 1 && grid[GridIndex(next_x + 1, next_y)])) {
+    // Walker sticks to the aggregate
+    if ((next_y > 0 && grid[GridIndexFromCoords(next_x, next_y - 1)]) ||
+        (next_y < HEIGHT - 1 && grid[GridIndexFromCoords(next_x, next_y + 1)]) ||
+        (next_x > 0 && grid[GridIndexFromCoords(next_x - 1, next_y)]) ||
+        (next_x < WIDTH - 1 && grid[GridIndexFromCoords(next_x + 1, next_y)])) {
 
-      grid[GridIndex(next_x, next_y)] = 1;
-      
-      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
-      return 0;
-    } else if ( i == ITERATIONS) {
-      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
-      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndex(next_x, next_y));
-      return 0;
+      grid[GridIndexFromCoords(next_x, next_y)] = 1;
+      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
+
+      int maximum_radius = (WIDTH > HEIGHT) ? (HEIGHT/ 2) : (WIDTH / 2);
+      if (*radius != -1 && ((*radius) < maximum_radius)) {
+        uint64_t grid_center_coords = GridCoordsFromIndex(grid_center);
+        int x1 = (grid_center_coords >> 32) & BIT_MASK_32;
+        int y1 = grid_center_coords & BIT_MASK_32;
+        int new_radius = EuclideanDistance(x1, y1, next_x, next_y); 
+        if (new_radius > (*radius)) *radius = new_radius;
+      }
+
+      return;
+    } 
+    // if walker does not stick to aggregate within ITERATIONS, then we kill it
+    else if ( i == ITERATIONS) {
+      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
+      grid_deltas->m_RecordGridDelta(grid_deltas, -1, GridIndexFromCoords(next_x, next_y));
+      return;
     }
 
-    grid_deltas->m_RecordGridDelta(grid_deltas, GridIndex(next_x, next_y), GridIndex(x, y));
+    // Walker moved to a valid position that is not adjacent to the aggregate within ITERATIONS
+    grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
     x = next_x;
     y = next_y;
     
   }
-  return 0;
+  return;
 }
 
 int main(void) {
@@ -193,7 +240,7 @@ int main(void) {
 
   const unsigned int grid_size = WIDTH * HEIGHT;
 
-  const int grid_center = GridIndex((WIDTH / 2), (HEIGHT / 2));
+  const int grid_center = GridIndexFromCoords((WIDTH / 2), (HEIGHT / 2));
   bool *grid = calloc(grid_size, sizeof(bool));
   if (grid == NULL) {
     perror("could not allocate memory for grid");
@@ -206,15 +253,16 @@ int main(void) {
   grid_deltas.m_RecordGridDelta(&grid_deltas, grid_center, grid_center);
 
   unsigned int spawn_site_distribution = UINT_MAX;
-  printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n");
+  printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n3. Circle Circumference-uniform Distribution\n");
 
-  while (spawn_site_distribution != 1 && spawn_site_distribution != 2) {
+  while (spawn_site_distribution != 1 && spawn_site_distribution != 2 && spawn_site_distribution != 3) {
     if (scanf("%u", &spawn_site_distribution) == 1) {
       int c;
       while((c = getchar()) != '\n' && c != EOF) {};
     };
   }
 
+  double radius = (spawn_site_distribution == 3) ? DEFAULT_RADIUS : -1.00;
   for (int i = 1; i <= ITERATIONS; i++) {
     int x, y;
     switch (spawn_site_distribution) {
@@ -225,13 +273,15 @@ int main(void) {
     case 2:
       SpawnPixelUniform(&x, &y, &rng1);
       break;
+
+    case 3:
+      SpawnCircumferenceUniform(&x, &y, radius, grid_center, &rng1);
+      break;
     }
 
-    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndex(x, y), GridIndex(x, y));
+    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndexFromCoords(x, y), GridIndexFromCoords(x, y));
 
-    if(Walk(&grid_deltas, x, y, grid, &rng1) == 1) {
-      return 1;
-    };
+    Walk(&grid_deltas, x, y, grid_center, &radius, grid, &rng1);
   }
 
   if (Render(grid) == 1) {
