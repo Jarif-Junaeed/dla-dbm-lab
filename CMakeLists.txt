@@ -35,7 +35,7 @@ add_executable(main
     src/griddelta.c
 )
 target_include_directories(main PRIVATE include)
-target_link_libraries(main PRIVATE pcg_basic)
+target_link_libraries(main PRIVATE pcg_basic m)
 
 target_compile_options(main PRIVATE
     -Wall
