@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-void RecordGridDelta(struct gridDeltas *self, int dest, int src) {
+void RecordGridDelta(struct gridDeltas *self, size_t dest, size_t src) {
   
   if (self->m_capacity == 0) {
     perror("RecordGridDelta() called on a gridDeltas with 0 capacity");

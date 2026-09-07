@@ -5,8 +5,8 @@
 #include <stddef.h>
 
 struct gridDelta {
-  int dest;
-  int src;
+  size_t dest;
+  size_t src;
 };
 
 struct gridDeltas {
@@ -14,7 +14,7 @@ struct gridDeltas {
   size_t m_used_capacity;
   struct gridDelta *m_grid_deltas;
 
-  void (*m_RecordGridDelta)(struct gridDeltas *self, int dest, int src);
+  void (*m_RecordGridDelta)(struct gridDeltas *self, size_t dest, size_t src);
 };
 
 struct gridDeltas GridDeltasCreate(size_t capacity);
