@@ -17,7 +17,7 @@
 
 #define PI 3.1415926536
 
-#define ITERATIONS 10000
+#define ITERATIONS 1000
 #define COLOR_CHANNELS 3
 #define WIDTH 600
 #define HEIGHT 400
@@ -189,7 +189,7 @@ int AnimateAggregation(struct gridDeltas *grid_deltas) {
            "-f rawvideo "
            "-pixel_format rgb24 "
            "-video_size %zux%zu "
-           "-framerate 10 "
+           "-framerate 120 "
            "-i - "
            "-c:v libx264 "
            "-pix_fmt yuv420p "
@@ -261,7 +261,7 @@ void Walk(struct gridDeltas *grid_deltas, int x, int y, size_t grid_center, doub
 
     // Walker went out of bounds
     if (next_x < 0 || next_x >= WIDTH || next_y < 0 || next_y >= HEIGHT) {
-      grid_deltas->m_RecordGridDelta(grid_deltas, SIZE_MAX, GridIndexFromCoords(x, y));
+      grid_deltas->m_ReduceGridDeltasUsedCapacity(grid_deltas, i+1);
       return;
     }
 
@@ -287,8 +287,7 @@ void Walk(struct gridDeltas *grid_deltas, int x, int y, size_t grid_center, doub
     } 
     // if walker does not stick to aggregate within ITERATIONS, then we kill it
     else if ( i == ITERATIONS - 1) {
-      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
-      grid_deltas->m_RecordGridDelta(grid_deltas, SIZE_MAX, GridIndexFromCoords(next_x, next_y));
+      grid_deltas->m_ReduceGridDeltasUsedCapacity(grid_deltas, i+1);
       return;
     }
 

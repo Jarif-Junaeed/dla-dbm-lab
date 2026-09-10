@@ -28,6 +28,15 @@ void RecordGridDelta(struct gridDeltas *self, size_t dest, size_t src) {
   (self->m_grid_deltas)[self->m_used_capacity++] = (struct gridDelta){.dest = dest, .src = src};
 }
 
+void ReduceGridDeltasUsedCapacity(struct gridDeltas *self, size_t amount) {
+  if(amount > self->m_used_capacity) {
+    perror("Cannot reduce used_capacity to below 0");
+    exit(1);
+  } else {
+    self->m_used_capacity -= amount;
+  }
+}
+
 struct gridDeltas GridDeltasCreate(size_t capacity) {
 
   if (capacity <= 0) {
@@ -41,7 +50,8 @@ struct gridDeltas GridDeltasCreate(size_t capacity) {
   }
   struct gridDeltas result = (struct gridDeltas){.m_capacity = capacity, .m_used_capacity = 0,
                                                  .m_grid_deltas = grid_deltas,
-                                                 .m_RecordGridDelta = RecordGridDelta};
+                                                 .m_RecordGridDelta = RecordGridDelta,
+                                                 .m_ReduceGridDeltasUsedCapacity = ReduceGridDeltasUsedCapacity};
 
   return result;
 }

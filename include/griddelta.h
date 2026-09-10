@@ -15,6 +15,7 @@ struct gridDeltas {
   struct gridDelta *m_grid_deltas;
 
   void (*m_RecordGridDelta)(struct gridDeltas *self, size_t dest, size_t src);
+  void (*m_ReduceGridDeltasUsedCapacity)(struct gridDeltas *self, size_t amount);
 };
 
 struct gridDeltas GridDeltasCreate(size_t capacity);
