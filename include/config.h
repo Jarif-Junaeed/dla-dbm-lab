@@ -1,0 +1,15 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define PI 3.1415926536
+
+#define WALKER_COUNT 1000
+#define MAX_WALKER_STEPS 1000
+#define COLOR_CHANNELS 3
+#define WIDTH 600
+#define HEIGHT 400
+#define DEFAULT_RADIUS 10.00
+
+#define BIT_MASK_32 0xFFFFFFFFu
+
+#endif

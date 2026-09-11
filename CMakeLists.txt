@@ -33,6 +33,11 @@ target_include_directories(pcg_basic PUBLIC ${pcg-c-basic_SOURCE_DIR})
 add_executable(main
     src/main.c
     src/griddelta.c
+    src/rng.c
+    src/spawn.c
+    src/stats.c
+    src/render.c
+    src/walker.c
 )
 target_include_directories(main PRIVATE include)
 target_link_libraries(main PRIVATE pcg_basic m)
