@@ -17,13 +17,47 @@
 
 #define PI 3.1415926536
 
-#define ITERATIONS 1000
+#define WALKER_COUNT 1000
+#define MAX_WALKER_STEPS 1000
 #define COLOR_CHANNELS 3
 #define WIDTH 600
 #define HEIGHT 400
 #define DEFAULT_RADIUS 10.00
 
 #define BIT_MASK_32 0xFFFFFFFFu
+
+struct walkerStats {
+  double m_stuck_pos_x;
+  double m_stuck_pos_y;
+  size_t m_walker_steps;
+  size_t m_rmax;
+  size_t m_rg;
+};
+
+struct stats {
+  size_t m_total_walkers;
+  size_t m_clustered_walkers;
+  struct walkerStats *m_walker_stats;
+};
+
+struct stats StatsCreate(void) {
+  struct walkerStats *walker_stats = malloc(WALKER_COUNT * sizeof(struct walkerStats));
+  if (walker_stats == NULL) {
+    perror("could not allocate memory for walker_stats");
+    exit(1);
+  }
+
+  struct stats result = (struct stats){.m_total_walkers = 0, .m_clustered_walkers = 0, .m_walker_stats = walker_stats};
+
+  return result;
+}
+
+void StatsDestroy(struct stats *stats) {
+  free(stats->m_walker_stats);
+  stats->m_walker_stats = NULL;
+  stats->m_total_walkers = 0;
+  stats->m_clustered_walkers = 0;
+}
 
 static inline size_t PixelIndex(int pixel) { return pixel * COLOR_CHANNELS; }
 
@@ -39,9 +73,9 @@ static inline uint64_t GridCoordsFromIndex(size_t index) {
   return coords;
 }
 
-static double EuclideanDistance(int x1, int y1, int x2, int y2) {
-  int delx = x2 - x1;
-  int dely = y2 - y1;
+static double EuclideanDistance(double x1, double y1, double x2, double y2) {
+  double delx = x2 - x1;
+  double dely = y2 - y1;
   
   return sqrt((delx * delx) + (dely * dely));
 }
@@ -239,8 +273,8 @@ int AnimateAggregation(struct gridDeltas *grid_deltas) {
   return 0;
 }
 
-void Walk(struct gridDeltas *grid_deltas, int x, int y, size_t grid_center, double *radius, bool *grid, pcg32_random_t *rng) {
-  for (size_t i = 0; i < ITERATIONS; i++) {
+void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, int x, int y, size_t grid_center, double *radius, bool *grid, pcg32_random_t *rng) {
+  for (size_t i = 0; i < MAX_WALKER_STEPS; i++) {
     unsigned int direction = pcg32_random_r(rng) & 3;
     int next_x = x;
     int next_y = y;
@@ -274,34 +308,66 @@ void Walk(struct gridDeltas *grid_deltas, int x, int y, size_t grid_center, doub
       grid[GridIndexFromCoords(next_x, next_y)] = 1;
       grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
 
-      int maximum_radius = (WIDTH > HEIGHT) ? (HEIGHT/ 2) : (WIDTH / 2);
+      uint64_t grid_center_coords = GridCoordsFromIndex(grid_center);
+      int center_x = (grid_center_coords >> 32) & BIT_MASK_32;
+      int center_y = grid_center_coords & BIT_MASK_32;
+
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_walker_steps = i + 1;
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_stuck_pos_x = next_x;
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_stuck_pos_y = next_y;
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_rmax = *radius;
+      
+
+      // We calulate the radius of gyration using rg = sqrt[{(sum_x2 + sum_y2) / N} - COM_x^2 - COM_y^2]
+      // which is mathematically equivalent to rg = sqrt[sum{ (x_i - COM_x)^2 + (y_i - COM_y)^2 } / N] 
+      double sum_x = center_x;
+      double sum_y = center_y;
+      double sum_x2 = center_x * center_x;
+      double sum_y2 = center_y * center_y;
+      for (size_t i = 0; i < grid_stats->m_clustered_walkers + 1; i++) {
+        double x = grid_stats->m_walker_stats[i].m_stuck_pos_x;
+        double y = grid_stats->m_walker_stats[i].m_stuck_pos_y;
+        
+        sum_x += x;
+        sum_y += y;
+        
+        sum_x2 += x * x;
+        sum_y2 += y * y;
+      }
+
+      // We have a + 2 to include the seed as well
+      double com_x = sum_x / (grid_stats->m_clustered_walkers + 2);
+      double com_y = sum_y / (grid_stats->m_clustered_walkers + 2);
+
+      double avg_r2 = ((sum_x2 + sum_y2) / (grid_stats->m_clustered_walkers + 2)) - (com_x * com_x) - (com_y * com_y);
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_rg = sqrt(avg_r2);
+
+      grid_stats->m_clustered_walkers++;
+
+      double maximum_radius = (WIDTH > HEIGHT) ? (HEIGHT/ 2) : (WIDTH / 2);
       if (*radius != -1 && ((*radius) < maximum_radius)) {
-        uint64_t grid_center_coords = GridCoordsFromIndex(grid_center);
-        int x1 = (grid_center_coords >> 32) & BIT_MASK_32;
-        int y1 = grid_center_coords & BIT_MASK_32;
-        int new_radius = EuclideanDistance(x1, y1, next_x, next_y); 
+        double new_radius = EuclideanDistance(center_x, center_y, next_x, next_y); 
         if (new_radius > (*radius)) *radius = new_radius;
       }
 
       return;
     } 
-    // if walker does not stick to aggregate within ITERATIONS, then we kill it
-    else if ( i == ITERATIONS - 1) {
+    // if walker does not stick to aggregate within MAX_WALKER_STEPS, then we kill it
+    else if ( i == MAX_WALKER_STEPS - 1) {
       grid_deltas->m_ReduceGridDeltasUsedCapacity(grid_deltas, i+1);
       return;
     }
 
-    // Walker moved to a valid position that is not adjacent to the aggregate within ITERATIONS
+    // Walker moved to a valid position that is not adjacent to the aggregate within MAX_WALKER_STEPS
     grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
     x = next_x;
     y = next_y;
-    
   }
   return;
 }
 
 int main(void) {
-  if ((ITERATIONS * ITERATIONS * sizeof(size_t)) >= SIZE_MAX) {
+  if ((WALKER_COUNT * WALKER_COUNT * sizeof(size_t)) >= SIZE_MAX) {
     perror("ITERATION count too high. It should be lower than SIZE_MAX (18446744073709551615)");
     return 1;
   }
@@ -323,6 +389,8 @@ int main(void) {
   grid[grid_center] = 1;
   grid_deltas.m_RecordGridDelta(&grid_deltas, grid_center, grid_center);
 
+  struct stats grid_stats = StatsCreate();
+
   unsigned int spawn_site_distribution = UINT_MAX;
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n3. Circle Circumference-uniform Distribution\n");
 
@@ -334,7 +402,7 @@ int main(void) {
   }
 
   double radius = (spawn_site_distribution == 3) ? DEFAULT_RADIUS : -1.00;
-  for (size_t i = 1; i <= ITERATIONS; i++) {
+  for (size_t i = 1; i <= WALKER_COUNT; i++) {
     int x, y;
     switch (spawn_site_distribution) {
     case 1:
@@ -351,8 +419,9 @@ int main(void) {
     }
 
     grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndexFromCoords(x, y), GridIndexFromCoords(x, y));
+    grid_stats.m_total_walkers++;
 
-    Walk(&grid_deltas, x, y, grid_center, &radius, grid, &rng1);
+    Walk(&grid_deltas, &grid_stats, x, y, grid_center, &radius, grid, &rng1);
   }
 
   printf("Reached the End of Simulation\n");
@@ -371,6 +440,7 @@ int main(void) {
 
   free(grid);
   GridDeltasDestroy(&grid_deltas);
+  StatsDestroy(&grid_stats);
 
   return 0;
 }
