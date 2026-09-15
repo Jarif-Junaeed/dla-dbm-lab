@@ -3,8 +3,8 @@
 #include <math.h>
 #include <stdint.h>
 
+#include "cluster.h"
 #include "config.h"
-#include "grid.h"
 
 void SpawnSideUniform(struct point *p, pcg32_random_t *rng) {
   int w = WIDTH - 1;
@@ -52,7 +52,7 @@ void SpawnPixelUniform(struct point *p, pcg32_random_t *rng) {
 }
 
 void SpawnCircumferenceUniform(struct point *p, double radius, size_t center, pcg32_random_t *rng) {
-  struct point center_point = GridCoordsFromIndex(center);
+  struct point center_point = ClusterCoordsFromIndex(center);
 
   double r = (double)pcg32_random_r(rng) / UINT32_MAX;
   p->x = (radius * sin(r * 2 * PI) + center_point.x);

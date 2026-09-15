@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 
-#include "griddelta.h"
+#include "clusterdelta.h"
 
-int Render(bool *grid);
-int AnimateAggregation(struct gridDeltas *grid_deltas);
+int Render(bool *cluster);
+int AnimateCluster(struct clusterDeltas *cluster_deltas);
 
 #endif

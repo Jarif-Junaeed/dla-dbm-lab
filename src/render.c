@@ -10,7 +10,7 @@
 
 #include "config.h"
 
-int Render(bool *grid) {
+int Render(bool *cluster) {
   const size_t screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
   const size_t pixel_count = WIDTH * HEIGHT;
 
@@ -23,7 +23,7 @@ int Render(bool *grid) {
   for (size_t pixel = 0; pixel < pixel_count; pixel++) {
     size_t i = pixel * COLOR_CHANNELS;
 
-    if (grid[pixel] == 0) {
+    if (cluster[pixel] == 0) {
       screen[i] = 255;     // R
       screen[i + 1] = 255; // G
       screen[i + 2] = 255; // B
@@ -61,7 +61,7 @@ int Render(bool *grid) {
   return 0;
 }
 
-int AnimateAggregation(struct gridDeltas *grid_deltas) {
+int AnimateCluster(struct clusterDeltas *cluster_deltas) {
   const size_t screen_size = WIDTH * HEIGHT * COLOR_CHANNELS;
 
   uint8_t *screen = calloc(screen_size, sizeof(uint8_t));
@@ -92,28 +92,28 @@ int AnimateAggregation(struct gridDeltas *grid_deltas) {
     return 1;
   }
 
-  for (size_t frame = 0; frame < grid_deltas->m_used_capacity; frame++) {
-    size_t src = grid_deltas->m_grid_deltas[frame].src * COLOR_CHANNELS;
-    size_t dest = (grid_deltas->m_grid_deltas[frame].dest == SIZE_MAX)
+  for (size_t frame = 0; frame < cluster_deltas->m_used_capacity; frame++) {
+    size_t src = cluster_deltas->m_cluster_deltas[frame].src * COLOR_CHANNELS;
+    size_t dest = (cluster_deltas->m_cluster_deltas[frame].dest == SIZE_MAX)
                       ? SIZE_MAX
-                      : grid_deltas->m_grid_deltas[frame].dest * COLOR_CHANNELS;
+                      : cluster_deltas->m_cluster_deltas[frame].dest * COLOR_CHANNELS;
 
     if (src == dest) {
       screen[src] = 255;
       screen[src + 1] = 255;
       screen[src + 2] = 255;
     } else if (dest == SIZE_MAX) {
-      // Remove Walker from src
+      // Remove Particle from src
       screen[src] = 0;
       screen[src + 1] = 0;
       screen[src + 2] = 0;
     } else {
-      // Remove Walker from src
+      // Remove Particle from src
       screen[src] = 0;
       screen[src + 1] = 0;
       screen[src + 2] = 0;
 
-      // Add Walker at dest
+      // Add Particle at dest
       screen[dest] = 255;
       screen[dest + 1] = 255;
       screen[dest + 2] = 255;

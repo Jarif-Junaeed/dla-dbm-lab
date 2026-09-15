@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "grid.h"
+#include "cluster.h"
 #include "pcg_basic.h"
 
 void SpawnSideUniform(struct point *p, pcg32_random_t *rng);

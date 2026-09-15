@@ -5,34 +5,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "cluster.h"
+#include "clusterdelta.h"
 #include "config.h"
-#include "grid.h"
-#include "griddelta.h"
+#include "particle.h"
 #include "render.h"
 #include "rng.h"
 #include "spawn.h"
 #include "stats.h"
-#include "walker.h"
 
 int main(void) {
   pcg32_random_t rng1;
   InitRNG(&rng1);
 
-  const size_t grid_size = WIDTH * HEIGHT;
+  const size_t cluster_size = WIDTH * HEIGHT;
 
-  const size_t grid_center = GridIndexFromCoords((WIDTH / 2), (HEIGHT / 2));
-  bool *grid = calloc(grid_size, sizeof(bool));
-  if (grid == NULL) {
-    perror("could not allocate memory for grid");
+  const size_t cluster_center = ClusterIndexFromCoords((WIDTH / 2), (HEIGHT / 2));
+  bool *cluster = calloc(cluster_size, sizeof(bool));
+  if (cluster == NULL) {
+    perror("could not allocate memory for cluster");
     return -1;
   }
 
-  struct gridDeltas grid_deltas = GridDeltasCreate(500);
+  struct clusterDeltas cluster_deltas = ClusterDeltasCreate(500);
 
-  grid[grid_center] = 1;
-  grid_deltas.m_RecordGridDelta(&grid_deltas, grid_center, grid_center);
+  cluster[cluster_center] = 1;
+  cluster_deltas.m_RecordClusterDelta(&cluster_deltas, cluster_center, cluster_center);
 
-  struct stats grid_stats = StatsCreate();
+  struct stats cluster_stats = StatsCreate();
 
   unsigned int spawn_site_distribution = UINT_MAX;
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n3. Circle Circumference-uniform Distribution\n");
@@ -45,7 +45,7 @@ int main(void) {
   }
 
   double radius = (spawn_site_distribution == 3) ? DEFAULT_RADIUS : -1.00;
-  for (size_t i = 1; i <= WALKER_COUNT; i++) {
+  for (size_t i = 1; i <= PARTICLE_COUNT; i++) {
     struct point p;
     switch (spawn_site_distribution) {
     case 1:
@@ -57,33 +57,33 @@ int main(void) {
       break;
 
     case 3:
-      SpawnCircumferenceUniform(&p, radius, grid_center, &rng1);
+      SpawnCircumferenceUniform(&p, radius, cluster_center, &rng1);
       break;
     }
 
-    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndexFromCoords(p.x, p.y), GridIndexFromCoords(p.x, p.y));
-    grid_stats.m_total_walkers++;
+    cluster_deltas.m_RecordClusterDelta(&cluster_deltas, ClusterIndexFromCoords(p.x, p.y), ClusterIndexFromCoords(p.x, p.y));
+    cluster_stats.m_total_particles++;
 
-    Walk(&grid_deltas, &grid_stats, p, grid_center, &radius, grid, &rng1);
+    Walk(&cluster_deltas, &cluster_stats, p, cluster_center, &radius, cluster, &rng1);
   }
 
   printf("Reached the End of Simulation\n");
 
-  if (Render(grid) == 1) {
+  if (Render(cluster) == 1) {
     return 1;
   }
 
   printf("Rendered Final State of DLA run\n");
 
-  if (AnimateAggregation(&grid_deltas) == 1) {
+  if (AnimateCluster(&cluster_deltas) == 1) {
     return 1;
   }
 
   printf("Animated DLA run\n");
 
-  free(grid);
-  GridDeltasDestroy(&grid_deltas);
-  StatsDestroy(&grid_stats);
+  free(cluster);
+  ClusterDeltasDestroy(&cluster_deltas);
+  StatsDestroy(&cluster_stats);
 
   return 0;
 }

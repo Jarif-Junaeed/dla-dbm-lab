@@ -3,19 +3,19 @@
 
 #include <stddef.h>
 
-#include "grid.h"
+#include "cluster.h"
 
-struct walkerStats {
+struct particleStats {
   struct point m_stuck_pos;
-  size_t m_walker_steps;
+  size_t m_particle_steps;
   size_t m_rmax;
   double m_rg;
 };
 
 struct stats {
-  size_t m_total_walkers;
-  size_t m_clustered_walkers;
-  struct walkerStats *m_walker_stats;
+  size_t m_total_particles;
+  size_t m_clustered_particles;
+  struct particleStats *m_particle_stats;
 };
 
 struct stats StatsCreate(void);
