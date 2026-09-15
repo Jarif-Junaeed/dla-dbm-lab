@@ -15,6 +15,8 @@
 #include "stats.h"
 
 int main(void) {
+  ConfigLoad("config.ini");
+
   pcg32_random_t rng1;
   InitRNG(&rng1);
 

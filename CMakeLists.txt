@@ -30,9 +30,20 @@ FetchContent_MakeAvailable(pcg-c-basic)
 add_library(pcg_basic STATIC ${pcg-c-basic_SOURCE_DIR}/pcg_basic.c)
 target_include_directories(pcg_basic PUBLIC ${pcg-c-basic_SOURCE_DIR})
 
+FetchContent_Declare(
+    inih
+    GIT_REPOSITORY https://github.com/benhoyt/inih.git
+    GIT_TAG        r62
+)
+FetchContent_MakeAvailable(inih)
+
+add_library(inih STATIC ${inih_SOURCE_DIR}/ini.c)
+target_include_directories(inih PUBLIC ${inih_SOURCE_DIR})
+
 add_executable(main
     src/main.c
     src/clusterdelta.c
+    src/config.c
     src/rng.c
     src/spawn.c
     src/stats.c
@@ -40,7 +51,7 @@ add_executable(main
     src/particle.c
 )
 target_include_directories(main PRIVATE include)
-target_link_libraries(main PRIVATE pcg_basic m)
+target_link_libraries(main PRIVATE pcg_basic inih m)
 
 target_compile_options(main PRIVATE
     -Wall
