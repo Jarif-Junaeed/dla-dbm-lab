@@ -34,20 +34,20 @@ int main(void) {
 
   struct stats cluster_stats = StatsCreate();
 
-  unsigned int spawn_site_distribution = UINT_MAX;
+  int spawn_site = INT_MAX;
   printf("1. Side-uniform Distribution\n2. Pixel-uniform Distribution\n3. Circle Circumference-uniform Distribution\n");
 
-  while (spawn_site_distribution != 1 && spawn_site_distribution != 2 && spawn_site_distribution != 3) {
-    if (scanf("%u", &spawn_site_distribution) == 1) {
+  while (spawn_site != 1 && spawn_site != 2 && spawn_site != 3) {
+    if (scanf("%d", &spawn_site) == 1) {
       int c;
       while((c = getchar()) != '\n' && c != EOF) {};
     };
   }
 
-  double radius = (spawn_site_distribution == 3) ? DEFAULT_RADIUS : -1.00;
+  double radius = (spawn_site == 3) ? DEFAULT_RADIUS : -1.00;
   for (size_t i = 1; i <= PARTICLE_COUNT; i++) {
     struct point p;
-    switch (spawn_site_distribution) {
+    switch (spawn_site) {
     case 1:
       SpawnSideUniform(&p, &rng1);
       break;
@@ -64,7 +64,7 @@ int main(void) {
     cluster_deltas.m_RecordClusterDelta(&cluster_deltas, ClusterIndexFromCoords(p.x, p.y), ClusterIndexFromCoords(p.x, p.y));
     cluster_stats.m_total_particles++;
 
-    Walk(&cluster_deltas, &cluster_stats, p, cluster_center, &radius, cluster, &rng1);
+    Walk(&cluster_deltas, &cluster_stats, p, cluster_center, &radius, cluster, spawn_site, &rng1);
   }
 
   printf("Reached the End of Simulation\n");

@@ -10,4 +10,6 @@
 #define HEIGHT 400
 #define DEFAULT_RADIUS 10.00
 
+#define DLA_STICKINESS_FACTOR 0.1
+
 #endif
