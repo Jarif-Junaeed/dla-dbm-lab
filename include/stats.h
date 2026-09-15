@@ -4,11 +4,11 @@
 #include <stddef.h>
 
 struct walkerStats {
-  double m_stuck_pos_x;
-  double m_stuck_pos_y;
+  size_t m_stuck_pos_x;
+  size_t m_stuck_pos_y;
   size_t m_walker_steps;
   size_t m_rmax;
-  size_t m_rg;
+  double m_rg;
 };
 
 struct stats {
