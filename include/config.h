@@ -10,6 +10,4 @@
 #define HEIGHT 400
 #define DEFAULT_RADIUS 10.00
 
-#define BIT_MASK_32 0xFFFFFFFFu
-
 #endif

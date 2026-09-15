@@ -1,7 +1,6 @@
 #include "walker.h"
 
 #include <math.h>
-#include <stdint.h>
 
 #include "config.h"
 #include "grid.h"
@@ -13,11 +12,11 @@ static double EuclideanDistance(double x1, double y1, double x2, double y2) {
   return sqrt((delx * delx) + (dely * dely));
 }
 
-void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, int x, int y, size_t grid_center, double *radius, bool *grid, pcg32_random_t *rng) {
+void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, struct point p, size_t grid_center, double *radius, bool *grid, pcg32_random_t *rng) {
   for (size_t i = 0; i < MAX_WALKER_STEPS; i++) {
     unsigned int direction = pcg32_random_r(rng) & 3;
-    int next_x = x;
-    int next_y = y;
+    long next_x = p.x;
+    long next_y = p.y;
     switch (direction) {
     case 0:
       next_y--;
@@ -46,27 +45,24 @@ void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, int x, int y
         (next_x < WIDTH - 1 && grid[GridIndexFromCoords(next_x + 1, next_y)])) {
 
       grid[GridIndexFromCoords(next_x, next_y)] = 1;
-      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
+      grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(p.x, p.y));
 
-      uint64_t grid_center_coords = GridCoordsFromIndex(grid_center);
-      int center_x = (grid_center_coords >> 32) & BIT_MASK_32;
-      int center_y = grid_center_coords & BIT_MASK_32;
+      struct point grid_center_coords = GridCoordsFromIndex(grid_center);
 
       grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_walker_steps = i + 1;
-      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_stuck_pos_x = next_x;
-      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_stuck_pos_y = next_y;
+      grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_stuck_pos = (struct point){.x = next_x, .y = next_y};
       grid_stats->m_walker_stats[grid_stats->m_clustered_walkers].m_rmax = *radius;
 
 
       // We calulate the radius of gyration using rg = sqrt[{(sum_x2 + sum_y2) / N} - COM_x^2 - COM_y^2]
       // which is mathematically equivalent to rg = sqrt[sum{ (x_i - COM_x)^2 + (y_i - COM_y)^2 } / N]
-      double sum_x = center_x;
-      double sum_y = center_y;
-      double sum_x2 = center_x * center_x;
-      double sum_y2 = center_y * center_y;
+      double sum_x = grid_center_coords.x;
+      double sum_y = grid_center_coords.y;
+      double sum_x2 = grid_center_coords.x * grid_center_coords.x;
+      double sum_y2 = grid_center_coords.y * grid_center_coords.y;
       for (size_t i = 0; i < grid_stats->m_clustered_walkers + 1; i++) {
-        double x = grid_stats->m_walker_stats[i].m_stuck_pos_x;
-        double y = grid_stats->m_walker_stats[i].m_stuck_pos_y;
+        double x = grid_stats->m_walker_stats[i].m_stuck_pos.x;
+        double y = grid_stats->m_walker_stats[i].m_stuck_pos.y;
 
         sum_x += x;
         sum_y += y;
@@ -86,7 +82,7 @@ void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, int x, int y
 
       double maximum_radius = (WIDTH > HEIGHT) ? (HEIGHT/ 2) : (WIDTH / 2);
       if (*radius != -1 && ((*radius) < maximum_radius)) {
-        double new_radius = EuclideanDistance(center_x, center_y, next_x, next_y);
+        double new_radius = EuclideanDistance(grid_center_coords.x, grid_center_coords.y, next_x, next_y);
         if (new_radius > (*radius)) *radius = new_radius;
       }
 
@@ -99,9 +95,9 @@ void Walk(struct gridDeltas *grid_deltas, struct stats *grid_stats, int x, int y
     }
 
     // Walker moved to a valid position that is not adjacent to the aggregate within MAX_WALKER_STEPS
-    grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(x, y));
-    x = next_x;
-    y = next_y;
+    grid_deltas->m_RecordGridDelta(grid_deltas, GridIndexFromCoords(next_x, next_y), GridIndexFromCoords(p.x, p.y));
+    p.x = next_x;
+    p.y = next_y;
   }
   return;
 }

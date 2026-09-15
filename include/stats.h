@@ -3,9 +3,10 @@
 
 #include <stddef.h>
 
+#include "grid.h"
+
 struct walkerStats {
-  size_t m_stuck_pos_x;
-  size_t m_stuck_pos_y;
+  struct point m_stuck_pos;
   size_t m_walker_steps;
   size_t m_rmax;
   double m_rg;

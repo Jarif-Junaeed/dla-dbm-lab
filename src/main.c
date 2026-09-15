@@ -46,25 +46,25 @@ int main(void) {
 
   double radius = (spawn_site_distribution == 3) ? DEFAULT_RADIUS : -1.00;
   for (size_t i = 1; i <= WALKER_COUNT; i++) {
-    int x, y;
+    struct point p;
     switch (spawn_site_distribution) {
     case 1:
-      SpawnSideUniform(&x, &y, &rng1);
+      SpawnSideUniform(&p, &rng1);
       break;
 
     case 2:
-      SpawnPixelUniform(&x, &y, &rng1);
+      SpawnPixelUniform(&p, &rng1);
       break;
 
     case 3:
-      SpawnCircumferenceUniform(&x, &y, radius, grid_center, &rng1);
+      SpawnCircumferenceUniform(&p, radius, grid_center, &rng1);
       break;
     }
 
-    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndexFromCoords(x, y), GridIndexFromCoords(x, y));
+    grid_deltas.m_RecordGridDelta(&grid_deltas, GridIndexFromCoords(p.x, p.y), GridIndexFromCoords(p.x, p.y));
     grid_stats.m_total_walkers++;
 
-    Walk(&grid_deltas, &grid_stats, x, y, grid_center, &radius, grid, &rng1);
+    Walk(&grid_deltas, &grid_stats, p, grid_center, &radius, grid, &rng1);
   }
 
   printf("Reached the End of Simulation\n");
